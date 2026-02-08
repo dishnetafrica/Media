@@ -127,21 +127,21 @@ function Home() {
           console.log('✗ No Instagram data in response');
         }
         
-        // Process YouTube
-        if (images.youtube) {
-          console.log('YouTube data found:', images.youtube);
-          const ytUrl = images.youtube.preview_url || images.youtube.cloudinary_url || images.youtube.download_url;
+        // Process video
+        if (images.video) {
+          console.log('video data found:', images.video);
+          const ytUrl = images.video.preview_url || images.video.cloudinary_url || images.video.download_url;
           if (ytUrl) {
-            platformOutputs.youtube = { 
+            platformOutputs.video = { 
               url: ytUrl, 
               type: 'video',
-              download_url: images.youtube.download_url || ytUrl
+              download_url: images.video.download_url || ytUrl
             };
             foundAnyImage = true;
-            console.log('✓ YouTube video added:', ytUrl);
+            console.log('✓ video video added:', ytUrl);
           }
         } else {
-          console.log('✗ No YouTube data in response');
+          console.log('✗ No video data in response');
         }
 
         if (!foundAnyImage) {
@@ -187,10 +187,10 @@ function Home() {
   };
 
   const platforms = [
-    { id: 'instagram', name: 'Instagram', icon: '📸' },
-    { id: 'linkedin', name: 'LinkedIn', icon: '💼' },
-    { id: 'facebook', name: 'Facebook', icon: '👥' },
-    { id: 'youtube', name: 'YouTube', icon: '▶️' },
+    { id: 'instagram', name: 'Instagram' },
+    { id: 'linkedin', name: 'LinkedIn'},
+    { id: 'facebook', name: 'Facebook' },
+    { id: 'video', name: 'video'},
   ];
 
   return (
