@@ -1,22 +1,20 @@
-# ---------- Build Stage ----------
-FROM node:18-alpine AS build
+FROM node:18-alpine
+
 WORKDIR /app
 
-# copy frontend package files
-COPY frontend/package*.json ./
+# Copy package files
+COPY package.json package-lock.json ./
+
 RUN npm install
 
-# copy frontend source
-COPY frontend/ ./
+# Copy rest of the app
+COPY . .
+
 RUN npm run build
 
-# ---------- Runtime Stage ----------
-FROM node:18-alpine
-WORKDIR /app
-
+# Install serve to serve build
 RUN npm install -g serve
 
-COPY --from=build /app/build ./build
-
 EXPOSE 3000
+
 CMD ["serve", "-s", "build", "-l", "3000"]
