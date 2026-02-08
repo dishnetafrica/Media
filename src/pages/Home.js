@@ -5,11 +5,15 @@ function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [generatedOutputs, setGeneratedOutputs] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [error, setError] = useState(null);
 
   // Image upload handler with API integration
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    // Reset error state
+    setError(null);
 
     // Preview uploaded image
     const reader = new FileReader();
@@ -21,13 +25,15 @@ function Home() {
       setIsProcessing(true);
       try {
         const formData = new FormData();
-        formData.append('file', file); // Key is 'file' as per API requirement
+        formData.append('file', file);
 
         // Create Basic Auth credentials
         const username = 'media_api';
         const password = '123456';
         const basicAuth = 'Basic ' + btoa(username + ':' + password);
 
+        console.log('Uploading image to API...');
+        
         // Upload image to webhook
         const uploadResponse = await fetch('https://ghana-n8n.uhnz4n.easypanel.host/webhook/media/intake', {
           method: 'POST',
@@ -42,39 +48,138 @@ function Home() {
         }
 
         const uploadData = await uploadResponse.json();
-        console.log('Upload successful:', uploadData);
+        console.log('Upload successful! Full API Response:', JSON.stringify(uploadData, null, 2));
 
-        // Process the API response
-        // TODO: Update this section based on the actual API response structure
-        // Example: If API returns { platforms: { instagram: {...}, linkedin: {...} } }
-        // then use: setGeneratedOutputs(uploadData.platforms);
+        // Robust API response handling
+        let responseData;
+        let images;
+
+        // Check if response is an array
+        if (Array.isArray(uploadData)) {
+          console.log('Response is an array, taking first element');
+          responseData = uploadData[0];
+        } else {
+          console.log('Response is an object');
+          responseData = uploadData;
+        }
+
+        // Extract images object
+        if (responseData && responseData.images) {
+          images = responseData.images;
+          console.log('Images object found:', JSON.stringify(images, null, 2));
+        } else {
+          console.error('No images object in response!', responseData);
+          throw new Error('Invalid API response: No images found');
+        }
         
-        // For now, showing uploaded image in all cards
-        // Replace with actual API response data structure
-        setGeneratedOutputs({
-          instagram: { url: imageUrl, type: 'image' },
-          linkedin: { url: imageUrl, type: 'image' },
-          youtube: { url: imageUrl, type: 'video' },
-          facebook: { url: imageUrl, type: 'image' },
-          twitter: { url: imageUrl, type: 'image' },
-        });
+        // Map API response to platform outputs
+        const platformOutputs = {};
+        let foundAnyImage = false;
+        
+        // Process Facebook
+        if (images.facebook) {
+          console.log('Facebook data found:', images.facebook);
+          const fbUrl = images.facebook.preview_url || images.facebook.cloudinary_url || images.facebook.download_url;
+          if (fbUrl) {
+            platformOutputs.facebook = { 
+              url: fbUrl, 
+              type: 'image',
+              download_url: images.facebook.download_url || fbUrl
+            };
+            foundAnyImage = true;
+            console.log('✓ Facebook image added:', fbUrl);
+          }
+        } else {
+          console.log('✗ No Facebook data in response');
+        }
+        
+        // Process LinkedIn
+        if (images.linkedin) {
+          console.log('LinkedIn data found:', images.linkedin);
+          const liUrl = images.linkedin.preview_url || images.linkedin.cloudinary_url || images.linkedin.download_url;
+          if (liUrl) {
+            platformOutputs.linkedin = { 
+              url: liUrl, 
+              type: 'image',
+              download_url: images.linkedin.download_url || liUrl
+            };
+            foundAnyImage = true;
+            console.log('✓ LinkedIn image added:', liUrl);
+          }
+        } else {
+          console.log('✗ No LinkedIn data in response');
+        }
+        
+        // Process Instagram
+        if (images.instagram) {
+          console.log('Instagram data found:', images.instagram);
+          const igUrl = images.instagram.preview_url || images.instagram.cloudinary_url || images.instagram.download_url;
+          if (igUrl) {
+            platformOutputs.instagram = { 
+              url: igUrl, 
+              type: 'image',
+              download_url: images.instagram.download_url || igUrl
+            };
+            foundAnyImage = true;
+            console.log('✓ Instagram image added:', igUrl);
+          }
+        } else {
+          console.log('✗ No Instagram data in response');
+        }
+        
+        // Process YouTube
+        if (images.youtube) {
+          console.log('YouTube data found:', images.youtube);
+          const ytUrl = images.youtube.preview_url || images.youtube.cloudinary_url || images.youtube.download_url;
+          if (ytUrl) {
+            platformOutputs.youtube = { 
+              url: ytUrl, 
+              type: 'video',
+              download_url: images.youtube.download_url || ytUrl
+            };
+            foundAnyImage = true;
+            console.log('✓ YouTube video added:', ytUrl);
+          }
+        } else {
+          console.log('✗ No YouTube data in response');
+        }
+
+        if (!foundAnyImage) {
+          console.error('No images found in any platform!');
+          throw new Error('API returned no images for any platform');
+        }
+
+        console.log('Final platform outputs:', platformOutputs);
+        setGeneratedOutputs(platformOutputs);
+        
       } catch (error) {
         console.error('Error processing image:', error);
+        setError(error.message);
         alert('Failed to upload image. Please try again. Error: ' + error.message);
       } finally {
         setIsProcessing(false);
       }
     };
+    
+    reader.onerror = (error) => {
+      console.error('FileReader error:', error);
+      setError('Failed to read file');
+      alert('Failed to read file. Please try again.');
+    };
+    
     reader.readAsDataURL(file);
   };
 
   const resetUpload = () => {
     setUploadedImage(null);
     setGeneratedOutputs(null);
+    setError(null);
   };
 
   const openImageModal = (url, type) => {
-    setSelectedImage({ url, type });
+    if (url) {
+      setSelectedImage({ url, type });
+    }
   };
 
   const closeImageModal = () => {
@@ -85,7 +190,6 @@ function Home() {
     { id: 'instagram', name: 'Instagram', icon: '📸' },
     { id: 'linkedin', name: 'LinkedIn', icon: '💼' },
     { id: 'facebook', name: 'Facebook', icon: '👥' },
-    { id: 'twitter', name: 'Twitter/X', icon: '🦅' },
     { id: 'youtube', name: 'YouTube', icon: '▶️' },
   ];
 
@@ -109,6 +213,21 @@ function Home() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+        {/* Error Display */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+            <div className="flex items-start">
+              <svg className="w-5 h-5 text-red-600 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <h3 className="text-sm font-medium text-red-800">Upload Error</h3>
+                <p className="text-sm text-red-700 mt-1">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Upload Section */}
         {!uploadedImage && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-8 mb-4 sm:mb-6">
@@ -189,22 +308,23 @@ function Home() {
                 {platforms.map((platform) => {
                   const output = generatedOutputs[platform.id];
                   const isVideo = output?.type === 'video';
+                  const hasContent = output && output.url;
                   
                   return (
                     <div
                       key={platform.id}
                       className={`bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow duration-200 ${
                         isVideo ? 'col-span-2 lg:col-span-4' : ''
-                      }`}
+                      } ${!hasContent ? 'opacity-60' : ''}`}
                     >
                       {/* Platform Header */}
-                      <div className="bg-blue-600 px-3 py-2 sm:px-4 sm:py-3">
+                      <div className={`px-3 py-2 sm:px-4 sm:py-3 ${hasContent ? 'bg-blue-600' : 'bg-gray-400'}`}>
                         <div className="flex items-center gap-2">
                           <span className="text-lg sm:text-2xl">{platform.icon}</span>
                           <div className="min-w-0 flex-1">
                             <h3 className="text-white font-semibold text-sm sm:text-base truncate">{platform.name}</h3>
-                            <p className="text-blue-100 text-xs">
-                              {isVideo ? 'Video' : 'Image'}
+                            <p className={`text-xs ${hasContent ? 'text-blue-100' : 'text-gray-200'}`}>
+                              {hasContent ? (isVideo ? 'Video' : 'Image') : 'Not available'}
                             </p>
                           </div>
                         </div>
@@ -213,53 +333,80 @@ function Home() {
                       {/* Content Preview */}
                       <div className="p-2 sm:p-4">
                         <div 
-                          className={`relative ${isVideo ? 'aspect-[21/9]' : 'aspect-video'} bg-gray-100 rounded-lg overflow-hidden mb-2 sm:mb-4 border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity`}
-                          onClick={() => openImageModal(output?.url, output?.type)}
+                          className={`relative ${isVideo ? 'aspect-[21/9]' : 'aspect-video'} bg-gray-100 rounded-lg overflow-hidden mb-2 sm:mb-4 border border-gray-200 ${hasContent ? 'cursor-pointer hover:opacity-90' : ''} transition-opacity`}
+                          onClick={() => hasContent && openImageModal(output.url, output.type)}
                         >
-                          {isVideo ? (
-                            <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
-                              <div className="text-center">
-                                <svg className="w-10 h-10 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <p className="text-xs sm:text-sm text-gray-300">Video Preview</p>
-                                <p className="text-xs text-gray-400 mt-1">Click to view full screen</p>
-                                {output?.url && (
+                          {hasContent ? (
+                            isVideo ? (
+                              <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+                                <div className="text-center">
+                                  <svg className="w-10 h-10 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  <p className="text-xs sm:text-sm text-gray-300">Video Preview</p>
+                                  <p className="text-xs text-gray-400 mt-1">Click to view full screen</p>
                                   <img
                                     src={output.url}
                                     alt="Video thumbnail"
                                     className="w-full h-full object-contain opacity-30 absolute inset-0"
+                                    onError={(e) => {
+                                      console.error(`Failed to load ${platform.name} image:`, output.url);
+                                    }}
                                   />
-                                )}
+                                </div>
                               </div>
-                            </div>
-                          ) : (
-                            output?.url ? (
+                            ) : (
                               <img
                                 src={output.url}
                                 alt={`${platform.name} content`}
                                 className="w-full h-full object-contain bg-white"
                                 onError={(e) => {
-                                  console.error('Image failed to load:', output.url);
-                                  e.target.style.display = 'none';
+                                  console.error(`Failed to load ${platform.name} image:`, output.url);
+                                  e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"%3E%3Crect fill="%23f3f4f6" width="400" height="300"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" fill="%239ca3af" font-family="sans-serif" font-size="16"%3EImage Load Failed%3C/text%3E%3C/svg%3E';
+                                }}
+                                onLoad={() => {
+                                  console.log(`✓ Successfully loaded ${platform.name} image`);
                                 }}
                               />
-                            ) : (
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <p className="text-gray-400 text-sm">No image</p>
-                              </div>
                             )
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="text-center">
+                                <svg className="w-12 h-12 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <p className="text-gray-400 text-sm">No image available</p>
+                              </div>
+                            </div>
                           )}
                         </div>
 
                         {/* Download Button */}
-                        <button className="w-full py-2 sm:py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 text-xs sm:text-sm">
-                          <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                          </svg>
-                          Download
-                        </button>
+                        {hasContent ? (
+                          <a 
+                            href={output.download_url || output.url}
+                            download
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full py-2 sm:py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 text-xs sm:text-sm"
+                          >
+                            <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Download
+                          </a>
+                        ) : (
+                          <button 
+                            disabled
+                            className="w-full py-2 sm:py-2.5 bg-gray-300 text-gray-500 font-medium rounded-lg cursor-not-allowed flex items-center justify-center gap-2 text-xs sm:text-sm"
+                          >
+                            <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Not Available
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -309,6 +456,9 @@ function Home() {
                   src={selectedImage.url}
                   alt="Full screen preview"
                   className="max-w-full max-h-[90vh] rounded-lg shadow-2xl object-contain"
+                  onError={(e) => {
+                    console.error('Failed to load full screen image:', selectedImage.url);
+                  }}
                 />
               )}
             </div>
