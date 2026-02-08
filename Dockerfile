@@ -15,6 +15,6 @@ RUN npm run build
 # Install serve to serve build
 RUN npm install -g serve
 
-EXPOSE 44321
+EXPOSE 3000
 
-CMD ["serve", "-s", "build", "-l", "44321"]
+CMD ["serve", "-s", "build", "-l", "3000"]
